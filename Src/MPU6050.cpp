@@ -55,31 +55,36 @@ MPU6050::MPU6050(void) {
 	this->temp = 0.0;
 }
 
-//void MPU6050::GetGyroBias(float * const avg, float * const stdev) const {
-//	static constexpr int NumOfTrial = 256;
-//
-//	float _avg = 0.0f;
-//	float _stdev = 0.0f;
-//
-//	for (int i = 0; i < NumOfTrial; i++) {
-//		float reading = HAL_I2C_Master_Transmit(hi2c, this->device_address << 1, &reg, 1,
-//				1000) ;
-//
-//		_avg += reading;
-//		_stdev += reading * reading;
-//
-//		Timer::sleep(5);
-//	}
-//
-//	_avg /= NumOfTrial;
-//
-//	_stdev -= NumOfTrial * _avg * _avg;
-//	_stdev /= NumOfTrial - 1;
-//	_stdev = sqrtf(_stdev);
-//
-//	*avg = _avg;
-//	*stdev = _stdev;
-//}
+void MPU6050::GetGyroBias(I2C_HandleTypeDef* hi2c, float * const avg,
+		float * const stdev) const {
+	static constexpr int NumOfTrial = 256;
+
+	uint8_t reg = MPU_GYRO_Z_H;
+	uint8_t data[2];
+
+	float _avg = 0.0f;
+	float _stdev = 0.0f;
+
+	for (int i = 0; i < NumOfTrial; i++) {
+		while(HAL_I2C_Master_Transmit(hi2c, this->device_address << 1, &reg, 1, 1000) != HAL_OK);
+		while(HAL_I2C_Master_Receive(hi2c, this->device_address << 1, data, 2, 1000) != HAL_OK);
+		float reading =((int16_t) (data[0] << 8 | data[1]) * 1000.0f) / 65.5;
+
+		_avg += reading;
+		_stdev += reading * reading;
+
+		HAL_Delay(5);
+	}
+
+	_avg /= NumOfTrial;
+
+	_stdev -= NumOfTrial * _avg * _avg;
+	_stdev /= NumOfTrial - 1;
+	_stdev = sqrtf(_stdev);
+
+	*avg = _avg;
+	*stdev = _stdev;
+}
 
 bool MPU6050::Init(I2C_HandleTypeDef* hi2c) {
 
@@ -146,22 +151,22 @@ bool MPU6050::Init(I2C_HandleTypeDef* hi2c) {
 	}
 
 	//yskさんのやつパクりました ドリフトとオフセットの補正方法はなんとかしたい
-//	HAL_Delay(100);
-//
-//	float avg = 0.0f;
-//	float stdev = 1000.0f;
-//
-//	for (int i = 0; i < 10; i++) {
-//		this->GetGyroBias(&avg, &stdev);
-//
-//		if (stdev < 700) {
-//			movavg = (int32_t) avg;
-//
-//			return true;
-//		}
-//	}
+	HAL_Delay(100);
 
-	return true;
+	float avg = 0.0f;
+	float stdev = 1000.0f;
+
+	for (int i = 0; i < 10; i++) {
+		this->GetGyroBias(hi2c, &avg, &stdev);
+
+		if (stdev < 700) {
+			movavg = (int32_t) avg;
+
+			return true;
+		}
+	}
+
+	return false;
 }
 
 void MPU6050::ReadAccGyro(I2C_HandleTypeDef* hi2c) {
@@ -171,9 +176,9 @@ void MPU6050::ReadAccGyro(I2C_HandleTypeDef* hi2c) {
 	;
 
 	/* Read full raw data, 14bytes */
-//	while (HAL_I2C_Master_Transmit(hi2c, this->device_address << 1, &reg, 1,
-//			1000) != HAL_OK)
-//		;
+	while (HAL_I2C_Master_Transmit(hi2c, this->device_address << 1, &reg, 1,
+			1000) != HAL_OK)
+		;
 
 	while (HAL_I2C_Master_Receive(hi2c, this->device_address << 1, data, 14,
 			1000) != HAL_OK)
@@ -190,25 +195,36 @@ void MPU6050::ReadAccGyro(I2C_HandleTypeDef* hi2c) {
 			+ (float) 36.53);
 
 	/* Format gyroscope data */
-	this->raw_mdps_x = ((int16_t) (data[8] << 8 | data[9])*1000.0) / 65.5;
-	this->raw_mdps_y = ((int16_t) (data[10] << 8 | data[11])*1000.0) / 65.5;
-	this->raw_mdps_z = ((int16_t) (data[12] << 8 | data[13])*1000.0) / 65.5;
+	this->raw_mdps_x = ((int16_t) (data[8] << 8 | data[9]) * 1000) / 65.5;
+	this->raw_mdps_y = ((int16_t) (data[10] << 8 | data[11]) * 1000) / 65.5;
+	this->raw_mdps_z = ((int16_t) (data[12] << 8 | data[13]) * 1000) / 65.5;
 
 	this->Calc();
 	/* Return OK */
 }
 
 void MPU6050::Calc(void) {
+	static constexpr int32_t movband = 1000;
 	static constexpr float RadPerMilliDeg = M_PI / 180000.0;
-	static constexpr float RadPerMilliDegPerSec = RadPerMilliDeg / SamplingFrequency;
-//	static constexpr float halfPi = M_PI / 2.0;
+	static constexpr float RadPerMilliDegPerSec = RadPerMilliDeg
+			/ SamplingFrequency;
+	static constexpr float w = 0.01f;
+	//	static constexpr float halfPi = M_PI / 2.0;
 
-	yaw += (float) raw_mdps_z * RadPerMilliDegPerSec;
+	int dy_biased_mdps = raw_mdps_z - movavg;
 
-	if (yaw > (float) M_PI) {
-		yaw -= (2.0f * (float) M_PI);
-	} else if (yaw < -(float) M_PI) {
-		yaw += (2.0f * (float) M_PI);
+	if (dy_biased_mdps < -movband || movband < dy_biased_mdps) {
+		// yaw is in radian, so, convert from mdps to radian.
+		yaw += (float) dy_biased_mdps * RadPerMilliDegPerSec;
+
+		if (yaw > (float) M_PI) {
+			yaw -= (2.0f * (float) M_PI);
+		} else if (yaw < -(float) M_PI) {
+			yaw += (2.0f * (float) M_PI);
+		}
+	} else {
+		movavg = (int) ((((float) movavg * (1 - w))
+				+ ((float) dy_biased_mdps * w)) + 0.5f);
 	}
 
 }

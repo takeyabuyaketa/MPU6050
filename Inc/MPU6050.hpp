@@ -11,12 +11,13 @@ private:
 	float raw_acc_x;
 	float raw_acc_y;
 	float raw_acc_z;
-	float raw_mdps_x;
-	float raw_mdps_y;
-	float raw_mdps_z;
+	int raw_mdps_x;
+	int raw_mdps_y;
+	int raw_mdps_z;
 //	void  ReadAccGyro(I2C_HandleTypeDef* hi2c);
-	void GetGyroBias(float * const avg, float * const stdev) const;
+	void GetGyroBias(I2C_HandleTypeDef* hi2c, float * const avg, float * const stdev) const;
 	static constexpr uint16_t SamplingFrequency = 200;
+	int movavg;
 
 	void  Calc(void);
 public:

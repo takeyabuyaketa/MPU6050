@@ -108,12 +108,10 @@ int main(void) {
 	/* USER CODE BEGIN WHILE */
 	uint32_t last_time = HAL_GetTick();
 	while (1) {
-		uint8_t reg = 0x3B;
-		HAL_I2C_Master_Transmit(&hi2c1, 0x68 << 1, &reg, 1,1000);
+//		uint8_t reg = 0x3B;
+//		HAL_I2C_Master_Transmit(&hi2c1, 0x68 << 1, &reg, 1,1000);
 		if((HAL_GetTick()-last_time)>5){
 		mpu->ReadAccGyro(&hi2c1);
-		mpu->acc_z;
-		//mpu->raw_gyro_z;
 		char buf[11];
 		sprintf(buf,"%1.5f\n\r\0",mpu->yaw);
 //		HAL_UART_Transmit(&huart2, (uint8_t *) buf, sizeof(buf),0xFFFF);
