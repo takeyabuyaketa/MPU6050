@@ -101,20 +101,25 @@ int main(void) {
 	MX_I2C1_Init();
 	/* USER CODE BEGIN 2 */
 	HAL_NVIC_SetPriority(SysTick_IRQn, 0, 0);
-	mpu->MPU6050_Init(&hi2c1);
+	mpu->Init(&hi2c1);
 	/* USER CODE END 2 */
 
 	/* Infinite loop */
 	/* USER CODE BEGIN WHILE */
+	uint32_t last_time = HAL_GetTick();
 	while (1) {
-		mpu->MPU6050_ReadAccGyro(&hi2c1);
+		uint8_t reg = 0x3B;
+		HAL_I2C_Master_Transmit(&hi2c1, 0x68 << 1, &reg, 1,1000);
+		if((HAL_GetTick()-last_time)>5){
+		mpu->ReadAccGyro(&hi2c1);
 		mpu->acc_z;
-		mpu->gyro_z;
-		char buf[10];
-		sprintf(buf,"%d\n\r",mpu->gyro_z);
+		//mpu->raw_gyro_z;
+		char buf[11];
+		sprintf(buf,"%1.5f\n\r\0",mpu->yaw);
 //		HAL_UART_Transmit(&huart2, (uint8_t *) buf, sizeof(buf),0xFFFF);
 		HAL_UART_Transmit(&huart2, (uint8_t *) buf, sizeof(buf),0xFFFF);
-		HAL_Delay(10);
+		last_time=HAL_GetTick();
+		}
 		/* USER CODE END WHILE */
 
 		/* USER CODE BEGIN 3 */
