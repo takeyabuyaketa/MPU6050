@@ -114,6 +114,7 @@ int main(void) {
 		mpu->ReadAccGyro(&hi2c1);
 		char buf[11];
 		sprintf(buf,"%1.5f\n\r\0",mpu->yaw);
+//		sprintf(buf,"%d\n\r",HAL_GetTick());
 //		HAL_UART_Transmit(&huart2, (uint8_t *) buf, sizeof(buf),0xFFFF);
 		HAL_UART_Transmit(&huart2, (uint8_t *) buf, sizeof(buf),0xFFFF);
 		last_time=HAL_GetTick();

@@ -31,7 +31,7 @@ uint8_t I_AM = 0x68;
 #define CONFIG ((uint8_t)0b00000011)//デジタルローパスフィルタとか gyroscope output rate = 1kHz
 #define SMPRT_SET ((uint8_t)0b00000100)//Sample Rate = Gyroscope Output Rate / (1 + SMPLRT_DIV)
 #define ACCEL_CONFIG ((uint8_t)0b00000000)//self testとか加速度のスケールとか
-#define GYRO_CONFIG  ((uint8_t)0b00001000)//self testとか角速度のスケールとか +-500deg/sec
+#define GYRO_CONFIG  ((uint8_t)0b00010000)//self testとか角速度のスケールとか +-1000deg/sec
 
 MPU6050::MPU6050(void) {
 	this->raw_acc_x = 0.0;
@@ -59,16 +59,21 @@ void MPU6050::GetGyroBias(I2C_HandleTypeDef* hi2c, float * const avg,
 		float * const stdev) const {
 	static constexpr int NumOfTrial = 256;
 
-	uint8_t reg = MPU_GYRO_Z_H;
+	uint8_t reg = MPU_GYRO_Z_H
+	;
 	uint8_t data[2];
 
 	float _avg = 0.0f;
 	float _stdev = 0.0f;
 
 	for (int i = 0; i < NumOfTrial; i++) {
-		while(HAL_I2C_Master_Transmit(hi2c, this->device_address << 1, &reg, 1, 1000) != HAL_OK);
-		while(HAL_I2C_Master_Receive(hi2c, this->device_address << 1, data, 2, 1000) != HAL_OK);
-		float reading =((int16_t) (data[0] << 8 | data[1]) * 1000.0f) / 65.5;
+		while (HAL_I2C_Master_Transmit(hi2c, this->device_address << 1, &reg, 1,
+				1000) != HAL_OK)
+			;
+		while (HAL_I2C_Master_Receive(hi2c, this->device_address << 1, data, 2,
+				1000) != HAL_OK)
+			;
+		float reading = ((int16_t) (data[0] << 8 | data[1]) * 1000.0f) / 65.5;
 
 		_avg += reading;
 		_stdev += reading * reading;
@@ -138,14 +143,14 @@ bool MPU6050::Init(I2C_HandleTypeDef* hi2c) {
 	d[0] = MPU_ACCCEL_CONFIG
 	;
 	d[1] = ACCEL_CONFIG;
-	while (HAL_I2C_Master_Transmit(hi2c, this->device_address << 1, d, 1, 1000)
+	while (HAL_I2C_Master_Transmit(hi2c, this->device_address << 1, d, 2, 1000)
 			!= HAL_OK) {
 		return false;
 	}
-	d[0] = MPU_ACCCEL_CONFIG
+	d[0] = MPU_GYRO_CONFIG
 	;
-	d[1] = ACCEL_CONFIG;
-	while (HAL_I2C_Master_Transmit(hi2c, this->device_address << 1, d, 1, 1000)
+	d[1] = GYRO_CONFIG;
+	while (HAL_I2C_Master_Transmit(hi2c, this->device_address << 1, d, 2, 1000)
 			!= HAL_OK) {
 		return false;
 	}
@@ -195,27 +200,29 @@ void MPU6050::ReadAccGyro(I2C_HandleTypeDef* hi2c) {
 			+ (float) 36.53);
 
 	/* Format gyroscope data */
-	this->raw_mdps_x = ((int16_t) (data[8] << 8 | data[9]) * 1000) / 65.5;
-	this->raw_mdps_y = ((int16_t) (data[10] << 8 | data[11]) * 1000) / 65.5;
-	this->raw_mdps_z = ((int16_t) (data[12] << 8 | data[13]) * 1000) / 65.5;
+	this->raw_mdps_x = ((int16_t) (data[8] << 8 | data[9]) * 1000) / 32.8;
+	this->raw_mdps_y = ((int16_t) (data[10] << 8 | data[11]) * 1000) / 32.8;
+	this->raw_mdps_z = ((int16_t) (data[12] << 8 | data[13]) * 1000) / 32.8;
 
 	this->Calc();
 	/* Return OK */
 }
 
 void MPU6050::Calc(void) {
-	static constexpr int32_t movband = 1000;
+	static constexpr int32_t movband = 500;
 	static constexpr float RadPerMilliDeg = M_PI / 180000.0;
-	static constexpr float RadPerMilliDegPerSec = RadPerMilliDeg
-			/ SamplingFrequency;
+//	static constexpr float RadPerMilliDegPerSec = RadPerMilliDeg/ SamplingFrequency;
 	static constexpr float w = 0.01f;
+	static uint32_t last_time = HAL_GetTick();
+	static float dt = 0;
 	//	static constexpr float halfPi = M_PI / 2.0;
 
 	int dy_biased_mdps = raw_mdps_z - movavg;
+	dt = ((HAL_GetTick() - last_time) / 1000.0);
 
 	if (dy_biased_mdps < -movband || movband < dy_biased_mdps) {
 		// yaw is in radian, so, convert from mdps to radian.
-		yaw += (float) dy_biased_mdps * RadPerMilliDegPerSec;
+		yaw += (float) dy_biased_mdps * RadPerMilliDeg * dt;
 
 		if (yaw > (float) M_PI) {
 			yaw -= (2.0f * (float) M_PI);
@@ -226,5 +233,7 @@ void MPU6050::Calc(void) {
 		movavg = (int) ((((float) movavg * (1 - w))
 				+ ((float) dy_biased_mdps * w)) + 0.5f);
 	}
+
+	last_time = HAL_GetTick();
 
 }
