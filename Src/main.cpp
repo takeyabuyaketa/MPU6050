@@ -47,7 +47,10 @@ I2C_HandleTypeDef hi2c1;
 DMA_HandleTypeDef hdma_i2c1_tx;
 DMA_HandleTypeDef hdma_i2c1_rx;
 
+TIM_HandleTypeDef htim6;
+
 UART_HandleTypeDef huart2;
+DMA_HandleTypeDef hdma_usart2_tx;
 
 /* USER CODE BEGIN PV */
 MPU6050 *mpu = new MPU6050();
@@ -60,8 +63,9 @@ static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_I2C1_Init(void);
+static void MX_TIM6_Init(void);
 /* USER CODE BEGIN PFP */
-
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -99,31 +103,49 @@ int main(void) {
 	MX_DMA_Init();
 	MX_USART2_UART_Init();
 	MX_I2C1_Init();
+	MX_TIM6_Init();
 	/* USER CODE BEGIN 2 */
+	char buf[100];
 	HAL_NVIC_SetPriority(SysTick_IRQn, 0, 0);
-	mpu->Init(&hi2c1);
+	bool init = mpu->Init(&hi2c1);
+	while (!init) {
+		mpu->Init(&hi2c1);
+	}
+	HAL_UART_Transmit_DMA(&huart2, (uint8_t *) buf, sizeof(buf));
+
+	HAL_TIM_Base_Start_IT(&htim6);
+
+//	uint8_t reg = 0x43;
+//	while (HAL_I2C_Master_Transmit_DMA(&hi2c1, 0x68 << 1, &reg,
+//			1) != HAL_OK)
+//		;
 	/* USER CODE END 2 */
 
 	/* Infinite loop */
 	/* USER CODE BEGIN WHILE */
-	uint32_t last_time = HAL_GetTick();
+//	uint32_t last_time = HAL_GetTick();
 	while (1) {
 //		uint8_t reg = 0x3B;
 //		HAL_I2C_Master_Transmit(&hi2c1, 0x68 << 1, &reg, 1,1000);
-		if((HAL_GetTick()-last_time)>5){
-		mpu->ReadAccGyro(&hi2c1);
-		char buf[11];
-		sprintf(buf,"%1.5f\n\r\0",mpu->yaw);
+		//if((HAL_GetTick()-last_time)>5){
+		sprintf(buf, "%1.3f  %5.3f  %5.3f  %5.3f\n\r", mpu->yaw, mpu->raw_mdps_x, mpu->movavg, mpu->raw_mdps_z);
 //		sprintf(buf,"%d\n\r",HAL_GetTick());
 //		HAL_UART_Transmit(&huart2, (uint8_t *) buf, sizeof(buf),0xFFFF);
-		HAL_UART_Transmit(&huart2, (uint8_t *) buf, sizeof(buf),0xFFFF);
-		last_time=HAL_GetTick();
-		}
+//		last_time=HAL_GetTick();
+		//}
 		/* USER CODE END WHILE */
 
 		/* USER CODE BEGIN 3 */
 	}
 	/* USER CODE END 3 */
+}
+
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  if(htim->Instance == TIM6)
+  {
+	  mpu->ReadAccGyro(&hi2c1);
+  }
 }
 
 /**
@@ -212,6 +234,42 @@ static void MX_I2C1_Init(void) {
 }
 
 /**
+ * @brief TIM6 Initialization Function
+ * @param None
+ * @retval None
+ */
+static void MX_TIM6_Init(void) {
+
+	/* USER CODE BEGIN TIM6_Init 0 */
+
+	/* USER CODE END TIM6_Init 0 */
+
+	TIM_MasterConfigTypeDef sMasterConfig = { 0 };
+
+	/* USER CODE BEGIN TIM6_Init 1 */
+
+	/* USER CODE END TIM6_Init 1 */
+	htim6.Instance = TIM6;
+	htim6.Init.Prescaler = 720 - 1;
+	htim6.Init.CounterMode = TIM_COUNTERMODE_UP;
+	htim6.Init.Period = 500-1;
+	htim6.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+	if (HAL_TIM_Base_Init(&htim6) != HAL_OK) {
+		Error_Handler();
+	}
+	sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+	sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+	if (HAL_TIMEx_MasterConfigSynchronization(&htim6, &sMasterConfig)
+			!= HAL_OK) {
+		Error_Handler();
+	}
+	/* USER CODE BEGIN TIM6_Init 2 */
+
+	/* USER CODE END TIM6_Init 2 */
+
+}
+
+/**
  * @brief USART2 Initialization Function
  * @param None
  * @retval None
@@ -260,6 +318,9 @@ static void MX_DMA_Init(void) {
 	/* DMA1_Channel3_IRQn interrupt configuration */
 	HAL_NVIC_SetPriority(DMA1_Channel3_IRQn, 0, 0);
 	HAL_NVIC_EnableIRQ(DMA1_Channel3_IRQn);
+	/* DMA1_Channel7_IRQn interrupt configuration */
+	HAL_NVIC_SetPriority(DMA1_Channel7_IRQn, 0, 0);
+	HAL_NVIC_EnableIRQ(DMA1_Channel7_IRQn);
 
 }
 

@@ -26,6 +26,7 @@ uint8_t I_AM = 0x68;
 #define MPU_SMPRT_DIV ((uint8_t) 0x19);
 #define MPU_ACCCEL_CONFIG ((uint8_t) 0x1c);
 #define MPU_GYRO_CONFIG ((uint8_t) 0x1B);
+
 //data
 #define POW_CLK_SET ((uint8_t)0b00000011)//電源とかクロック周り
 #define CONFIG ((uint8_t)0b00000011)//デジタルローパスフィルタとか gyroscope output rate = 1kHz
@@ -57,6 +58,7 @@ MPU6050::MPU6050(void) {
 
 void MPU6050::GetGyroBias(I2C_HandleTypeDef* hi2c, float * const avg,
 		float * const stdev) const {
+	static I2C_HandleTypeDef* handle = hi2c;
 	static constexpr int NumOfTrial = 256;
 
 	uint8_t reg = MPU_GYRO_Z_H
@@ -67,13 +69,14 @@ void MPU6050::GetGyroBias(I2C_HandleTypeDef* hi2c, float * const avg,
 	float _stdev = 0.0f;
 
 	for (int i = 0; i < NumOfTrial; i++) {
-		while (HAL_I2C_Master_Transmit(hi2c, this->device_address << 1, &reg, 1,
-				1000) != HAL_OK)
+
+		while (HAL_I2C_Master_Transmit(handle, this->device_address << 1, &reg,
+				1, 1000) != HAL_OK)
 			;
-		while (HAL_I2C_Master_Receive(hi2c, this->device_address << 1, data, 2,
-				1000) != HAL_OK)
+		while (HAL_I2C_Master_Receive(handle, this->device_address << 1, data,
+				2, 1000) != HAL_OK)
 			;
-		float reading = ((int16_t) (data[0] << 8 | data[1]) * 1000.0f) / 65.5;
+		float reading = ((int16_t) (data[0] << 8 | data[1]) * 1000.0f) / 32.8;
 
 		_avg += reading;
 		_stdev += reading * reading;
@@ -92,24 +95,24 @@ void MPU6050::GetGyroBias(I2C_HandleTypeDef* hi2c, float * const avg,
 }
 
 bool MPU6050::Init(I2C_HandleTypeDef* hi2c) {
-
+	static I2C_HandleTypeDef* handle = hi2c;
 	uint8_t reg;
 	uint8_t temp;
 	uint8_t d[2];
 
-	if (HAL_I2C_IsDeviceReady(hi2c, this->device_address << 1, 32, 5)
+	if (HAL_I2C_IsDeviceReady(handle, this->device_address << 1, 32, 5)
 			!= HAL_OK) {
 		return false;
 	}
 	reg = MPU_WHO_AM_I
 	;
-	if (HAL_I2C_Master_Transmit(hi2c, this->device_address << 1, &reg, 1, 1000)
-			!= HAL_OK) {
+	if (HAL_I2C_Master_Transmit(handle, this->device_address << 1, &reg, 1,
+			1000) != HAL_OK) {
 		return false;
 	}
 
-	if (HAL_I2C_Master_Receive(hi2c, this->device_address << 1, &temp, 1, 1000)
-			!= HAL_OK) {
+	if (HAL_I2C_Master_Receive(handle, this->device_address << 1, &temp, 1,
+			1000) != HAL_OK) {
 		return false;
 	}
 
@@ -121,7 +124,7 @@ bool MPU6050::Init(I2C_HandleTypeDef* hi2c) {
 	d[0] = MPU_MGMT_1
 	;
 	d[1] = POW_CLK_SET;
-	if (HAL_I2C_Master_Transmit(hi2c, this->device_address << 1, d, 2, 1000)
+	if (HAL_I2C_Master_Transmit(handle, this->device_address << 1, d, 2, 1000)
 			!= HAL_OK) {
 		return false;
 	}
@@ -129,29 +132,29 @@ bool MPU6050::Init(I2C_HandleTypeDef* hi2c) {
 	d[0] = MPU_CONFIG
 	;
 	d[1] = CONFIG;
-	if (HAL_I2C_Master_Transmit(hi2c, this->device_address << 1, d, 2, 1000)
+	if (HAL_I2C_Master_Transmit(handle, this->device_address << 1, d, 2, 1000)
 			!= HAL_OK) {
 		return false;
 	}
 	d[0] = MPU_SMPRT_DIV
 	;
 	d[1] = SMPRT_SET;
-	if (HAL_I2C_Master_Transmit(hi2c, this->device_address << 1, d, 2, 1000)
+	if (HAL_I2C_Master_Transmit(handle, this->device_address << 1, d, 2, 1000)
 			!= HAL_OK) {
 		return false;
 	}
 	d[0] = MPU_ACCCEL_CONFIG
 	;
 	d[1] = ACCEL_CONFIG;
-	while (HAL_I2C_Master_Transmit(hi2c, this->device_address << 1, d, 2, 1000)
-			!= HAL_OK) {
+	while (HAL_I2C_Master_Transmit(handle, this->device_address << 1, d, 2,
+			1000) != HAL_OK) {
 		return false;
 	}
 	d[0] = MPU_GYRO_CONFIG
 	;
 	d[1] = GYRO_CONFIG;
-	while (HAL_I2C_Master_Transmit(hi2c, this->device_address << 1, d, 2, 1000)
-			!= HAL_OK) {
+	while (HAL_I2C_Master_Transmit(handle, this->device_address << 1, d, 2,
+			1000) != HAL_OK) {
 		return false;
 	}
 
@@ -165,7 +168,7 @@ bool MPU6050::Init(I2C_HandleTypeDef* hi2c) {
 		this->GetGyroBias(hi2c, &avg, &stdev);
 
 		if (stdev < 700) {
-			movavg = (int32_t) avg;
+			movavg = avg;
 
 			return true;
 		}
@@ -175,24 +178,25 @@ bool MPU6050::Init(I2C_HandleTypeDef* hi2c) {
 }
 
 void MPU6050::ReadAccGyro(I2C_HandleTypeDef* hi2c) {
+	static I2C_HandleTypeDef* handle = hi2c;
 	uint8_t data[14];
 	int16_t temp;
 	uint8_t reg = MPU_ACC_X_H
 	;
 
 	/* Read full raw data, 14bytes */
-	while (HAL_I2C_Master_Transmit(hi2c, this->device_address << 1, &reg, 1,
+
+	while (HAL_I2C_Master_Transmit(handle, this->device_address << 1, &reg, 1,
 			1000) != HAL_OK)
 		;
-
-	while (HAL_I2C_Master_Receive(hi2c, this->device_address << 1, data, 14,
+	while (HAL_I2C_Master_Receive(handle, this->device_address << 1, data, 14,
 			1000) != HAL_OK)
 		;
 
 	/* Format accelerometer data */
-	this->raw_acc_x = (int16_t) (data[0] << 8 | data[1] / 16384);
-	this->raw_acc_y = (int16_t) (data[2] << 8 | data[3] / 16384);
-	this->raw_acc_z = (int16_t) (data[4] << 8 | data[5] / 16384);
+	this->raw_acc_x = (int16_t) (data[0] << 8 | data[1]) / -16384.0; //鉛直方向にz軸の右手系だと全て値がマイナスになった
+	this->raw_acc_y = (int16_t) (data[2] << 8 | data[3]) / -16384.0;
+	this->raw_acc_z = (int16_t) (data[4] << 8 | data[5]) / -16384.0;
 
 	/* Format temperature */
 	temp = (data[6] << 8 | data[7]);
@@ -209,20 +213,23 @@ void MPU6050::ReadAccGyro(I2C_HandleTypeDef* hi2c) {
 }
 
 void MPU6050::Calc(void) {
-	static constexpr int32_t movband = 500;
+	static constexpr float movband = 100.0;
 	static constexpr float RadPerMilliDeg = M_PI / 180000.0;
-//	static constexpr float RadPerMilliDegPerSec = RadPerMilliDeg/ SamplingFrequency;
+	static constexpr float RadPerMilliDegPerSec = RadPerMilliDeg
+			/ SamplingFrequency;
 	static constexpr float w = 0.01f;
-	static uint32_t last_time = HAL_GetTick();
 	static float dt = 0;
-	//	static constexpr float halfPi = M_PI / 2.0;
+	static uint32_t last_time = HAL_GetTick();
 
-	int dy_biased_mdps = raw_mdps_z - movavg;
-	dt = ((HAL_GetTick() - last_time) / 1000.0);
+//	dt = (HAL_GetTick() - last_time) / 1000.0;
+	last_time = HAL_GetTick();
+
+	float dy_biased_mdps = raw_mdps_z - movavg;
 
 	if (dy_biased_mdps < -movband || movband < dy_biased_mdps) {
 		// yaw is in radian, so, convert from mdps to radian.
-		yaw += (float) dy_biased_mdps * RadPerMilliDeg * dt;
+//		yaw += dy_biased_mdps * RadPerMilliDeg * dt;
+		yaw += dy_biased_mdps * RadPerMilliDegPerSec;
 
 		if (yaw > (float) M_PI) {
 			yaw -= (2.0f * (float) M_PI);
@@ -230,10 +237,7 @@ void MPU6050::Calc(void) {
 			yaw += (2.0f * (float) M_PI);
 		}
 	} else {
-		movavg = (int) ((((float) movavg * (1 - w))
-				+ ((float) dy_biased_mdps * w)) + 0.5f);
+		movavg = (((movavg * (1 - w)) + (raw_mdps_z * w)));
 	}
-
-	last_time = HAL_GetTick();
 
 }
