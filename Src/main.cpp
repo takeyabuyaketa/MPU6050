@@ -105,7 +105,7 @@ int main(void) {
 	MX_I2C1_Init();
 	MX_TIM6_Init();
 	/* USER CODE BEGIN 2 */
-	char buf[100];
+	char buf[30];
 	HAL_NVIC_SetPriority(SysTick_IRQn, 0, 0);
 	bool init = mpu->Init(&hi2c1);
 	while (!init) {
@@ -128,7 +128,7 @@ int main(void) {
 //		uint8_t reg = 0x3B;
 //		HAL_I2C_Master_Transmit(&hi2c1, 0x68 << 1, &reg, 1,1000);
 		//if((HAL_GetTick()-last_time)>5){
-		sprintf(buf, "%1.3f  %5.3f  %5.3f  %5.3f\n\r", mpu->yaw, mpu->raw_mdps_x, mpu->movavg, mpu->raw_mdps_z);
+		sprintf(buf, "%5.3f  %5.3f  %5.3f\n\r", mpu->vel_x, mpu->raw_ma_x, mpu->movavg_acc_x);
 //		sprintf(buf,"%d\n\r",HAL_GetTick());
 //		HAL_UART_Transmit(&huart2, (uint8_t *) buf, sizeof(buf),0xFFFF);
 //		last_time=HAL_GetTick();
@@ -144,7 +144,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   if(htim->Instance == TIM6)
   {
-	  mpu->ReadAccGyro(&hi2c1);
+	  mpu->Sample(&hi2c1);
   }
 }
 

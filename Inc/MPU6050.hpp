@@ -8,18 +8,26 @@
 class MPU6050 {
 private:
 	uint8_t device_address = 0x68;
-	float raw_acc_x;
-	float raw_acc_y;
-	float raw_acc_z;
+//	float raw_ma_x;
+//	float raw_ma_y;
+//	float raw_ma_z;
 //	float raw_mdps_x;
 //	float raw_mdps_y;
 //	float raw_mdps_z;
-	void GetGyroBias(I2C_HandleTypeDef* hi2c, float * const avg, float * const stdev) const;
+	void GetGyroBias(I2C_HandleTypeDef* hi2c, float * const avg, float * const stdev);//constではReadの使い回しができないのでやめた
 	static constexpr uint16_t SamplingFrequency = 200;
 //	float movavg;
-	void  Calc(void);
+	void  ReadAccGyro(I2C_HandleTypeDef* hi2c);
+	void  Calc_Ang(void);
+	void  Calc_Vel(void);
+	float Integral(float old,float current);
 public:
-	float movavg;
+	float raw_ma_x;
+	float raw_ma_y;
+	float raw_ma_z;
+	float movavg_acc_x;
+	float movavg_acc_y;
+	float movavg_ang_z;
 	float raw_mdps_x;
 	float raw_mdps_y;
 	float raw_mdps_z;
@@ -38,7 +46,7 @@ public:
 	float temp;
 	MPU6050(void);
 	bool Init(I2C_HandleTypeDef* hi2c);
-	void  ReadAccGyro(I2C_HandleTypeDef* hi2c);
+	void Sample(I2C_HandleTypeDef* hi2c);
 
 };
 
