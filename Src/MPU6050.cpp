@@ -29,9 +29,9 @@ uint8_t I_AM = 0x68;
 
 //data
 #define POW_CLK_SET ((uint8_t)0b00000011)//電源とかクロック周り
-#define CONFIG ((uint8_t)0b00000011)//デジタルローパスフィルタとか gyroscope output rate = 1kHz
+#define CONFIG ((uint8_t)0b00000001)//デジタルローパスフィルタとか gyroscope output rate = 1kHz
 #define SMPRT_SET ((uint8_t)0b00000100)//Sample Rate = Gyroscope Output Rate / (1 + SMPLRT_DIV)
-#define ACCEL_CONFIG ((uint8_t)0b00001000)//self testとか加速度のスケールとか +-4g
+#define ACCEL_CONFIG ((uint8_t)0b00010000)//self testとか加速度のスケールとか +-8g
 #define GYRO_CONFIG  ((uint8_t)0b00001000)//self testとか角速度のスケールとか +-500deg/sec
 
 MPU6050::MPU6050(void) {
@@ -198,11 +198,11 @@ void MPU6050::ReadAccGyro(I2C_HandleTypeDef* hi2c) {
 
 	/* Format accelerometer data */
 	this->raw_ma_x = ((int16_t) (data[0] << 8 | data[1]) * 9.80665 * 1000)
-			/ 8192.0;
+			/ 4096.0;
 	this->raw_ma_y = ((int16_t) (data[2] << 8 | data[3]) * 9.80665 * 1000)
-			/ 8192.0;
+			/ 4096.0;
 	this->raw_ma_z = ((int16_t) (data[4] << 8 | data[5]) * 9.80665 * 1000)
-			/ -8192.0;
+			/ -4096.0;
 
 	/* Format temperature */
 	temp = (data[6] << 8 | data[7]);
@@ -251,24 +251,22 @@ void MPU6050::Calc_Ang(void) {
 }
 
 void MPU6050::Calc_Vel(void) {
-	static constexpr float movband_x = 200.0;
-	static constexpr float movband_y = 200.0;
+	static constexpr float movband_x = 50.0;
+	static constexpr float movband_y = 50.0;
 	static constexpr float AccPerMilliG = 1.0 / 1000;
 	static constexpr float AccPerMilliGPerSec = AccPerMilliG
 			/ SamplingFrequency;
-	static constexpr float w_x = 0.01f;
-	static constexpr float w_y = 0.01f;
-	static float dt = 0;
+	static constexpr float w_x = 0.03f;
+	static constexpr float w_y = 0.03f;
+//	static float dt = 0;
 	static uint32_t last_time = HAL_GetTick();
 	static float old_x = 0;
 	static float old_y = 0;
 	static float lowpassValue_x = movavg_acc_x;
 	static float lowpassValue_y = movavg_acc_y;
 
-//	dt = (HAL_GetTick() - last_time) / 1000.0;
+	dt = (HAL_GetTick() - last_time)/1000.0;
 	last_time = HAL_GetTick();
-
-
 
 	float dy_biased_ma_x = raw_ma_x - movavg_acc_x;
 	float dy_biased_ma_y = raw_ma_y - movavg_acc_y;

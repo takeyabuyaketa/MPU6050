@@ -47,6 +47,7 @@ public:
 	MPU6050(void);
 	bool Init(I2C_HandleTypeDef* hi2c);
 	void Sample(I2C_HandleTypeDef* hi2c);
+	float dt=0;
 
 };
 

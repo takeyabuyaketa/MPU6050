@@ -29,7 +29,14 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
+I2C_HandleTypeDef hi2c1;
+DMA_HandleTypeDef hdma_i2c1_tx;
+DMA_HandleTypeDef hdma_i2c1_rx;
 
+TIM_HandleTypeDef htim6;
+
+UART_HandleTypeDef huart2;
+DMA_HandleTypeDef hdma_usart2_tx;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -43,18 +50,11 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
-I2C_HandleTypeDef hi2c1;
-DMA_HandleTypeDef hdma_i2c1_tx;
-DMA_HandleTypeDef hdma_i2c1_rx;
-
-TIM_HandleTypeDef htim6;
-
-UART_HandleTypeDef huart2;
-DMA_HandleTypeDef hdma_usart2_tx;
 
 /* USER CODE BEGIN PV */
 MPU6050 *mpu = new MPU6050();
-
+uint32_t dt=0;
+uint32_t last_time=0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
